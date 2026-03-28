@@ -1,0 +1,1287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Boulder Log</title>
+
+    <!-- PWA Meta -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#533483">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Boulder Log">
+    <link rel="apple-touch-icon" href="./icon-192.png">
+
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --surface: #16213e;
+            --surface2: #0f3460;
+            --accent: #e94560;
+            --accent2: #533483;
+            --text: #eee;
+            --text-muted: #aab;
+            --success: #4ecca3;
+            --warning: #f0a500;
+            --radius: 12px;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            min-height: 100dvh;
+            padding-bottom: 80px;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--surface2), var(--accent2));
+            padding: 20px 16px 16px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            padding-top: max(20px, env(safe-area-inset-top));
+        }
+        .header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: 1px; }
+        .header p { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+
+        /* Install banner */
+        .install-banner {
+            display: none;
+            background: var(--surface2);
+            padding: 10px 16px;
+            text-align: center;
+            font-size: 0.85rem;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .install-banner.show { display: block; }
+        .install-banner button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 6px;
+            font-weight: 600;
+            margin-left: 10px;
+            cursor: pointer;
+        }
+
+        /* Tab Navigation */
+        .tab-nav {
+            display: flex;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--surface);
+            border-top: 1px solid rgba(255,255,255,0.1);
+            z-index: 100;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 12px 8px;
+            text-align: center;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tab-btn.active { color: var(--accent); }
+        .tab-btn svg { display: block; margin: 0 auto 4px; width: 24px; height: 24px; }
+
+        /* Tab Content */
+        .tab-content { display: none; padding: 16px; }
+        .tab-content.active { display: block; }
+
+        /* Cards */
+        .card {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .card h3 { font-size: 0.95rem; margin-bottom: 8px; color: var(--accent); }
+
+        /* Forms */
+        label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            margin-top: 12px;
+        }
+        label:first-child { margin-top: 0; }
+        input[type="text"],
+        input[type="number"],
+        input[type="date"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--bg);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 16px; /* prevents iOS zoom */
+            outline: none;
+            transition: border 0.2s;
+            -webkit-appearance: none;
+        }
+        input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+        textarea { resize: vertical; min-height: 60px; }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 100%;
+            margin-top: 16px;
+        }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-secondary { background: var(--surface2); color: var(--text); }
+        .btn-success { background: var(--success); color: #1a1a2e; }
+        .btn-warning { background: var(--warning); color: #1a1a2e; }
+        .btn-small { width: auto; padding: 6px 14px; font-size: 0.8rem; margin-top: 8px; }
+        .btn-danger { background: #c0392b; color: white; }
+        .btn-row { display: flex; gap: 8px; }
+        .btn-row .btn { flex: 1; }
+
+        /* Climb Log Entry */
+        .climb-entry {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 14px;
+            margin-bottom: 10px;
+            border-left: 4px solid var(--accent);
+            position: relative;
+        }
+        .climb-entry .climb-grade { font-size: 1.1rem; font-weight: 700; }
+        .climb-entry .climb-meta { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+        .climb-entry .climb-details { font-size: 0.85rem; margin-top: 6px; }
+        .climb-photo-thumb {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 6px;
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            cursor: pointer;
+        }
+        .climb-entry .hold-colour-dot {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            vertical-align: middle;
+            margin-right: 4px;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        .delete-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.75rem;
+            padding: 4px 8px;
+            margin-top: 6px;
+            display: inline-block;
+        }
+        .delete-btn:hover { color: #c0392b; }
+
+        /* Gym list item */
+        .gym-item {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 14px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            border: 1px solid rgba(255,255,255,0.05);
+            transition: border 0.2s;
+        }
+        .gym-item:hover { border-color: var(--accent); }
+        .gym-item h4 { font-size: 0.95rem; }
+        .gym-item p { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+
+        /* Tags */
+        .tag {
+            display: inline-block;
+            padding: 3px 10px;
+            background: var(--surface2);
+            border-radius: 20px;
+            font-size: 0.75rem;
+            margin: 2px 4px 2px 0;
+        }
+
+        /* Colour picker grid */
+        .colour-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+        .colour-option {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .colour-option.selected { border-color: white; transform: scale(1.15); }
+
+        /* Photo preview */
+        .photo-preview { max-width: 100%; max-height: 200px; border-radius: 8px; margin-top: 8px; display: none; }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 20px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .modal h3 { margin-bottom: 12px; }
+        .modal-close { background: none; border: none; color: var(--text-muted); font-size: 1.2rem; float: right; cursor: pointer; }
+
+        /* Image viewer */
+        .image-viewer {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 300;
+            align-items: center;
+            justify-content: center;
+        }
+        .image-viewer.active { display: flex; }
+        .image-viewer img { max-width: 95%; max-height: 90vh; border-radius: 8px; }
+        .image-viewer-close { position: absolute; top: 16px; right: 16px; background: none; border: none; color: white; font-size: 2rem; cursor: pointer; }
+
+        /* Stats */
+        .stat-card { text-align: center; padding: 16px; }
+        .stat-number { font-size: 2rem; font-weight: 700; color: var(--accent); }
+        .stat-label { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+        /* Filter bar */
+        .filter-bar { display: flex; gap: 8px; margin-bottom: 12px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+        .filter-chip {
+            flex-shrink: 0;
+            padding: 6px 14px;
+            background: var(--surface);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 20px;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+        .filter-chip.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+        .empty-state { text-align: center; padding: 40px 20px; color: var(--text-muted); }
+        .empty-state svg { width: 64px; height: 64px; margin-bottom: 12px; opacity: 0.4; }
+
+        /* Wall/colour tag input */
+        .wall-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+        .wall-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            background: var(--surface2);
+            border-radius: 16px;
+            font-size: 0.8rem;
+        }
+        .wall-tag button { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1rem; line-height: 1; }
+        .wall-input-row { display: flex; gap: 8px; margin-top: 6px; }
+        .wall-input-row input { flex: 1; }
+        .wall-input-row button {
+            padding: 8px 16px;
+            background: var(--surface2);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            color: var(--text);
+            cursor: pointer;
+            font-size: 0.9rem;
+            white-space: nowrap;
+        }
+
+        input[type="file"] { display: none; }
+        .file-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 16px;
+            background: var(--surface2);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            margin-top: 6px;
+            color: var(--text);
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            background: var(--success);
+            color: #1a1a2e;
+            padding: 10px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            opacity: 0;
+            transition: all 0.3s;
+            z-index: 400;
+            pointer-events: none;
+        }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    </style>
+</head>
+<body>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Install Banner -->
+<div class="install-banner" id="installBanner">
+    Install Boulder Log for offline use
+    <button id="installBtn">Install</button>
+</div>
+
+<!-- Header -->
+<div class="header">
+    <h1>Boulder Log</h1>
+    <p id="headerSubtitle">Track your climbing progress</p>
+</div>
+
+<!-- Tab: Log a Climb -->
+<div id="tabLog" class="tab-content active">
+    <div class="card">
+        <h3>Log a Climb</h3>
+
+        <label>Gym</label>
+        <select id="climbGym" onchange="onGymSelected()">
+            <option value="">Select a gym...</option>
+        </select>
+
+        <label>Wall</label>
+        <select id="climbWall">
+            <option value="">Select a wall...</option>
+        </select>
+
+        <label>Difficulty / Grade</label>
+        <select id="climbGrade">
+            <option value="">Select grade...</option>
+        </select>
+
+        <label>Hold Colour</label>
+        <div class="colour-grid" id="holdColourGrid"></div>
+        <input type="text" id="holdColourCustom" placeholder="Or type a custom colour..." style="margin-top:8px;">
+
+        <label>Number of Tries</label>
+        <input type="number" id="climbTries" min="1" value="1" placeholder="1">
+
+        <label>Date</label>
+        <input type="date" id="climbDate">
+
+        <label>Notes (optional)</label>
+        <textarea id="climbNotes" placeholder="How did it feel? Any beta notes?"></textarea>
+
+        <label>Photo (optional)</label>
+        <label class="file-label" for="climbPhoto">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            Add Photo
+        </label>
+        <input type="file" id="climbPhoto" accept="image/*" capture="environment" onchange="previewPhoto(this)">
+        <img id="photoPreview" class="photo-preview">
+
+        <button class="btn btn-primary" onclick="saveClimb()">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            Log Climb
+        </button>
+    </div>
+</div>
+
+<!-- Tab: History -->
+<div id="tabHistory" class="tab-content">
+    <div class="filter-bar" id="historyFilters"></div>
+    <div id="climbList"></div>
+</div>
+
+<!-- Tab: Gyms -->
+<div id="tabGyms" class="tab-content">
+    <div id="gymList"></div>
+    <button class="btn btn-primary" onclick="openGymModal()">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        Add Gym
+    </button>
+</div>
+
+<!-- Tab: Stats -->
+<div id="tabStats" class="tab-content">
+    <div id="statsContent"></div>
+</div>
+
+<!-- Tab: Export -->
+<div id="tabExport" class="tab-content">
+    <div class="card">
+        <h3>Export Data</h3>
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;">Download your climbing data for backup or analysis.</p>
+
+        <label>What to export</label>
+        <select id="exportType">
+            <option value="climbs">Climbs</option>
+            <option value="gyms">Gyms</option>
+            <option value="all">Everything</option>
+        </select>
+
+        <label>Format</label>
+        <select id="exportFormat">
+            <option value="json">JSON</option>
+            <option value="csv">CSV</option>
+        </select>
+
+        <button class="btn btn-success" onclick="exportData()">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Download Export
+        </button>
+    </div>
+
+    <div class="card" style="margin-top:12px;">
+        <h3>Import Data</h3>
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;">Restore from a previous JSON export.</p>
+        <label class="file-label" for="importFile">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+            Choose JSON File
+        </label>
+        <input type="file" id="importFile" accept=".json" onchange="importData(this)">
+    </div>
+</div>
+
+<!-- Bottom Tab Navigation -->
+<nav class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('tabLog', this)">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        Log
+    </button>
+    <button class="tab-btn" onclick="switchTab('tabHistory', this)">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3M3 12a9 9 0 1118 0 9 9 0 01-18 0z"/></svg>
+        History
+    </button>
+    <button class="tab-btn" onclick="switchTab('tabGyms', this)">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+        Gyms
+    </button>
+    <button class="tab-btn" onclick="switchTab('tabStats', this)">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+        Stats
+    </button>
+    <button class="tab-btn" onclick="switchTab('tabExport', this)">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        Export
+    </button>
+</nav>
+
+<!-- Gym Modal -->
+<div class="modal-overlay" id="gymModal">
+    <div class="modal">
+        <button class="modal-close" onclick="closeGymModal()">&times;</button>
+        <h3 id="gymModalTitle">Add Gym</h3>
+
+        <label>Gym Name</label>
+        <input type="text" id="gymName" placeholder="e.g. BlocHaus">
+
+        <label>Location</label>
+        <input type="text" id="gymLocation" placeholder="e.g. Melbourne, VIC">
+
+        <label>Grading System</label>
+        <select id="gymGrading" onchange="onGradingChanged()">
+            <option value="colour">Colour-based</option>
+            <option value="v-scale">V-Scale (V0-V17)</option>
+            <option value="font">Fontainebleau (4a-8c+)</option>
+            <option value="number">Number (1-10)</option>
+            <option value="custom">Custom</option>
+        </select>
+
+        <div id="customGradesSection" style="display:none;">
+            <label>Custom Grades (comma-separated)</label>
+            <input type="text" id="customGrades" placeholder="e.g. Beginner, Intermediate, Advanced">
+        </div>
+
+        <div id="colourGradesSection" style="display:none;">
+            <label>Grade Colours</label>
+            <p style="font-size:0.75rem;color:var(--text-muted);margin-bottom:6px;">Add the colours your gym uses for grading (in order of difficulty).</p>
+            <div class="wall-tags" id="colourTags"></div>
+            <div class="wall-input-row">
+                <input type="text" id="colourInput" placeholder="e.g. Green" onkeydown="if(event.key==='Enter'){event.preventDefault();addGymColour();}">
+                <button onclick="addGymColour()">+ Add</button>
+            </div>
+        </div>
+
+        <label>Walls</label>
+        <div class="wall-tags" id="wallTags"></div>
+        <div class="wall-input-row">
+            <input type="text" id="wallInput" placeholder="Wall name" onkeydown="if(event.key==='Enter'){event.preventDefault();addWall();}">
+            <button onclick="addWall()">+ Add</button>
+        </div>
+
+        <input type="hidden" id="editGymId">
+        <button class="btn btn-primary" onclick="saveGym()">Save Gym</button>
+    </div>
+</div>
+
+<!-- Image Viewer -->
+<div class="image-viewer" id="imageViewer" onclick="closeImageViewer()">
+    <button class="image-viewer-close">&times;</button>
+    <img id="viewerImage" src="">
+</div>
+
+<script>
+// ===== IndexedDB DATA LAYER =====
+const DB_NAME = 'BoulderLogDB';
+const DB_VERSION = 1;
+let db = null;
+
+function openDB() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = e => {
+            const d = e.target.result;
+            if (!d.objectStoreNames.contains('gyms')) {
+                d.createObjectStore('gyms', { keyPath: 'id' });
+            }
+            if (!d.objectStoreNames.contains('climbs')) {
+                const store = d.createObjectStore('climbs', { keyPath: 'id' });
+                store.createIndex('gymId', 'gymId', { unique: false });
+                store.createIndex('date', 'date', { unique: false });
+            }
+        };
+        req.onsuccess = e => { db = e.target.result; resolve(db); };
+        req.onerror = e => reject(e.target.error);
+    });
+}
+
+function dbGetAll(storeName) {
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readonly');
+        const req = tx.objectStore(storeName).getAll();
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+}
+
+function dbPut(storeName, item) {
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        const req = tx.objectStore(storeName).put(item);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+}
+
+function dbDelete(storeName, key) {
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        const req = tx.objectStore(storeName).delete(key);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+    });
+}
+
+function dbClear(storeName) {
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        const req = tx.objectStore(storeName).clear();
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+    });
+}
+
+// Migrate localStorage data to IndexedDB (one-time)
+async function migrateFromLocalStorage() {
+    try {
+        const raw = localStorage.getItem('boulderLog');
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        if (data.gyms) {
+            for (const g of data.gyms) await dbPut('gyms', g);
+        }
+        if (data.climbs) {
+            for (const c of data.climbs) await dbPut('climbs', c);
+        }
+        localStorage.removeItem('boulderLog');
+        console.log('Migrated localStorage data to IndexedDB');
+    } catch(e) {
+        console.warn('Migration failed:', e);
+    }
+}
+
+// In-memory cache refreshed from DB
+let appGyms = [];
+let appClimbs = [];
+
+async function refreshData() {
+    appGyms = await dbGetAll('gyms');
+    appClimbs = await dbGetAll('climbs');
+}
+
+// ===== GRADING SYSTEMS =====
+const GRADING_SYSTEMS = {
+    'v-scale': ['VB','V0','V1','V2','V3','V4','V5','V6','V7','V8','V9','V10','V11','V12','V13','V14','V15','V16','V17'],
+    'font': ['3','4a','4b','4c','5a','5b','5c','6a','6a+','6b','6b+','6c','6c+','7a','7a+','7b','7b+','7c','7c+','8a','8a+','8b','8b+','8c','8c+'],
+    'number': ['1','2','3','4','5','6','7','8','9','10']
+};
+
+const HOLD_COLOURS = [
+    {name:'White', hex:'#ffffff'},
+    {name:'Yellow', hex:'#ffd700'},
+    {name:'Green', hex:'#2ecc71'},
+    {name:'Blue', hex:'#3498db'},
+    {name:'Purple', hex:'#9b59b6'},
+    {name:'Red', hex:'#e74c3c'},
+    {name:'Orange', hex:'#e67e22'},
+    {name:'Pink', hex:'#e91e90'},
+    {name:'Black', hex:'#333333'},
+    {name:'Brown', hex:'#8B4513'},
+    {name:'Teal', hex:'#1abc9c'},
+    {name:'Grey', hex:'#95a5a6'}
+];
+
+let selectedHoldColour = '';
+let tempWalls = [];
+let tempColours = [];
+
+// ===== TOAST =====
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ===== TAB SWITCHING =====
+function switchTab(tabId, btn) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+    btn.classList.add('active');
+
+    if (tabId === 'tabHistory') renderHistory();
+    if (tabId === 'tabGyms') renderGyms();
+    if (tabId === 'tabStats') renderStats();
+    if (tabId === 'tabLog') populateGymSelect();
+}
+
+// ===== GYM MANAGEMENT =====
+function openGymModal(gymId) {
+    document.getElementById('gymModal').classList.add('active');
+    tempWalls = [];
+    tempColours = [];
+    if (gymId) {
+        const gym = appGyms.find(g => g.id === gymId);
+        if (gym) {
+            document.getElementById('gymModalTitle').textContent = 'Edit Gym';
+            document.getElementById('gymName').value = gym.name;
+            document.getElementById('gymLocation').value = gym.location;
+            document.getElementById('gymGrading').value = gym.grading;
+            document.getElementById('editGymId').value = gym.id;
+            tempWalls = [...gym.walls];
+            if (gym.grading === 'custom' && gym.customGrades) {
+                document.getElementById('customGrades').value = gym.customGrades.join(', ');
+            }
+            if (gym.grading === 'colour' && gym.colourGrades) {
+                tempColours = [...gym.colourGrades];
+            }
+            onGradingChanged();
+        }
+    } else {
+        document.getElementById('gymModalTitle').textContent = 'Add Gym';
+        document.getElementById('gymName').value = '';
+        document.getElementById('gymLocation').value = '';
+        document.getElementById('gymGrading').value = 'colour';
+        document.getElementById('editGymId').value = '';
+        document.getElementById('customGrades').value = '';
+        onGradingChanged();
+    }
+    renderWallTags();
+    renderColourTags();
+}
+
+function closeGymModal() {
+    document.getElementById('gymModal').classList.remove('active');
+}
+
+function onGradingChanged() {
+    const val = document.getElementById('gymGrading').value;
+    document.getElementById('customGradesSection').style.display = val === 'custom' ? 'block' : 'none';
+    document.getElementById('colourGradesSection').style.display = val === 'colour' ? 'block' : 'none';
+}
+
+function addGymColour() {
+    const input = document.getElementById('colourInput');
+    const name = input.value.trim();
+    if (name && !tempColours.includes(name)) {
+        tempColours.push(name);
+        renderColourTags();
+        input.value = '';
+    }
+    input.focus();
+}
+
+function removeGymColour(idx) {
+    tempColours.splice(idx, 1);
+    renderColourTags();
+}
+
+function renderColourTags() {
+    const container = document.getElementById('colourTags');
+    container.innerHTML = tempColours.map((c, i) => {
+        const hex = getColourHex(c);
+        return `<span class="wall-tag"><span class="hold-colour-dot" style="background:${hex}"></span>${c} <button onclick="removeGymColour(${i})">&times;</button></span>`;
+    }).join('');
+}
+
+function addWall() {
+    const input = document.getElementById('wallInput');
+    const name = input.value.trim();
+    if (name && !tempWalls.includes(name)) {
+        tempWalls.push(name);
+        renderWallTags();
+        input.value = '';
+    }
+    input.focus();
+}
+
+function removeWall(idx) {
+    tempWalls.splice(idx, 1);
+    renderWallTags();
+}
+
+function renderWallTags() {
+    const container = document.getElementById('wallTags');
+    container.innerHTML = tempWalls.map((w, i) =>
+        `<span class="wall-tag">${w} <button onclick="removeWall(${i})">&times;</button></span>`
+    ).join('');
+}
+
+async function saveGym() {
+    const name = document.getElementById('gymName').value.trim();
+    const location = document.getElementById('gymLocation').value.trim();
+    const grading = document.getElementById('gymGrading').value;
+    const editId = document.getElementById('editGymId').value;
+
+    if (!name) { alert('Please enter a gym name.'); return; }
+
+    let customGrades = [];
+    if (grading === 'custom') {
+        customGrades = document.getElementById('customGrades').value
+            .split(',').map(s => s.trim()).filter(s => s);
+        if (!customGrades.length) { alert('Please enter custom grades.'); return; }
+    }
+
+    if (grading === 'colour' && !tempColours.length) {
+        alert('Please add at least one colour grade for this gym.');
+        return;
+    }
+
+    const gym = {
+        id: editId || Date.now().toString(),
+        name, location, grading,
+        walls: [...tempWalls],
+        customGrades,
+        colourGrades: grading === 'colour' ? [...tempColours] : []
+    };
+
+    await dbPut('gyms', gym);
+    await refreshData();
+    closeGymModal();
+    renderGyms();
+    populateGymSelect();
+    showToast(editId ? 'Gym updated!' : 'Gym added!');
+}
+
+async function deleteGym(id) {
+    if (!confirm('Delete this gym? Associated climbs will not be deleted.')) return;
+    await dbDelete('gyms', id);
+    await refreshData();
+    renderGyms();
+    populateGymSelect();
+}
+
+function renderGyms() {
+    const container = document.getElementById('gymList');
+    if (!appGyms.length) {
+        container.innerHTML = `<div class="empty-state">
+            <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+            <p>No gyms added yet.<br>Add your first gym to get started!</p>
+        </div>`;
+        return;
+    }
+    container.innerHTML = appGyms.map(g => {
+        const colourDots = (g.grading === 'colour' && g.colourGrades) ?
+            `<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;">` +
+            g.colourGrades.map(c => `<span class="hold-colour-dot" style="background:${getColourHex(c)}" title="${c}"></span>`).join('') +
+            `</div>` : '';
+        return `<div class="gym-item" onclick="openGymModal('${g.id}')">
+            <h4>${g.name}</h4>
+            <p>${g.location} &middot; ${g.grading} grading</p>
+            ${colourDots}
+            <div style="margin-top:6px;">
+                ${g.walls.map(w => `<span class="tag">${w}</span>`).join('')}
+            </div>
+            <button class="delete-btn" onclick="event.stopPropagation();deleteGym('${g.id}')">Delete</button>
+        </div>`;
+    }).join('');
+}
+
+// ===== CLIMB LOGGING =====
+function populateGymSelect() {
+    const sel = document.getElementById('climbGym');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">Select a gym...</option>' +
+        appGyms.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+    if (current) sel.value = current;
+    onGymSelected();
+}
+
+function onGymSelected() {
+    const gymId = document.getElementById('climbGym').value;
+    const wallSel = document.getElementById('climbWall');
+    const gradeSel = document.getElementById('climbGrade');
+
+    wallSel.innerHTML = '<option value="">Select a wall...</option>';
+    gradeSel.innerHTML = '<option value="">Select grade...</option>';
+
+    if (!gymId) return;
+
+    const gym = appGyms.find(g => g.id === gymId);
+    if (!gym) return;
+
+    gym.walls.forEach(w => {
+        wallSel.innerHTML += `<option value="${w}">${w}</option>`;
+    });
+
+    let grades;
+    if (gym.grading === 'colour') {
+        grades = gym.colourGrades || [];
+    } else if (gym.grading === 'custom') {
+        grades = gym.customGrades || [];
+    } else {
+        grades = GRADING_SYSTEMS[gym.grading] || [];
+    }
+    grades.forEach(g => {
+        gradeSel.innerHTML += `<option value="${g}">${g}</option>`;
+    });
+}
+
+function previewPhoto(input) {
+    const preview = document.getElementById('photoPreview');
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = e => {
+            preview.src = e.target.result;
+            preview.style.display = 'block';
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+async function saveClimb() {
+    const gymId = document.getElementById('climbGym').value;
+    const wall = document.getElementById('climbWall').value;
+    const grade = document.getElementById('climbGrade').value;
+    const tries = parseInt(document.getElementById('climbTries').value) || 1;
+    const date = document.getElementById('climbDate').value;
+    const notes = document.getElementById('climbNotes').value.trim();
+    const customColour = document.getElementById('holdColourCustom').value.trim();
+    const holdColour = customColour || selectedHoldColour;
+
+    if (!gymId) { alert('Please select a gym.'); return; }
+    if (!grade) { alert('Please select a grade.'); return; }
+
+    const gym = appGyms.find(g => g.id === gymId);
+
+    let photo = '';
+    const preview = document.getElementById('photoPreview');
+    if (preview.src && preview.style.display !== 'none') {
+        photo = preview.src;
+    }
+
+    const climb = {
+        id: Date.now().toString(),
+        gymId,
+        gymName: gym ? gym.name : '',
+        wall, grade, holdColour, tries,
+        date: date || new Date().toISOString().split('T')[0],
+        notes, photo
+    };
+
+    await dbPut('climbs', climb);
+    await refreshData();
+
+    // Reset form
+    document.getElementById('climbWall').value = '';
+    document.getElementById('climbGrade').value = '';
+    document.getElementById('climbTries').value = '1';
+    document.getElementById('climbNotes').value = '';
+    document.getElementById('holdColourCustom').value = '';
+    selectedHoldColour = '';
+    document.querySelectorAll('.colour-option').forEach(o => o.classList.remove('selected'));
+    preview.style.display = 'none';
+    preview.src = '';
+    document.getElementById('climbPhoto').value = '';
+
+    updateSubtitle();
+    showToast('Climb logged!');
+}
+
+// ===== CLIMB HISTORY =====
+let historyFilter = 'all';
+
+function renderHistory() {
+    const filterBar = document.getElementById('historyFilters');
+    const gymIds = [...new Set(appClimbs.map(c => c.gymId))];
+    let chips = `<div class="filter-chip ${historyFilter === 'all' ? 'active' : ''}" onclick="historyFilter='all';renderHistory()">All</div>`;
+    gymIds.forEach(gid => {
+        const gym = appGyms.find(g => g.id === gid);
+        const name = gym ? gym.name : 'Unknown';
+        chips += `<div class="filter-chip ${historyFilter === gid ? 'active' : ''}" onclick="historyFilter='${gid}';renderHistory()">${name}</div>`;
+    });
+    filterBar.innerHTML = chips;
+
+    let climbs = [...appClimbs];
+    if (historyFilter !== 'all') {
+        climbs = climbs.filter(c => c.gymId === historyFilter);
+    }
+    climbs.sort((a, b) => b.date.localeCompare(a.date) || parseInt(b.id) - parseInt(a.id));
+
+    const container = document.getElementById('climbList');
+    if (!climbs.length) {
+        container.innerHTML = `<div class="empty-state">
+            <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 8v4l3 3M3 12a9 9 0 1118 0 9 9 0 01-18 0z"/></svg>
+            <p>No climbs logged yet.<br>Go crush some boulders!</p>
+        </div>`;
+        return;
+    }
+
+    container.innerHTML = climbs.map(c => {
+        const colourDot = c.holdColour ?
+            `<span class="hold-colour-dot" style="background:${getColourHex(c.holdColour)}"></span>${c.holdColour}` : '';
+        const photoThumb = c.photo ?
+            `<img class="climb-photo-thumb" src="${c.photo}" onclick="event.stopPropagation();viewImage('${c.id}')">` : '';
+        return `<div class="climb-entry">
+            ${photoThumb}
+            <div class="climb-grade">${c.grade}</div>
+            <div class="climb-meta">${c.gymName}${c.wall ? ' &middot; ' + c.wall : ''} &middot; ${formatDate(c.date)}</div>
+            <div class="climb-details">
+                ${colourDot ? colourDot + ' &middot; ' : ''}${c.tries === 1 ? 'Flash!' : c.tries + ' tries'}
+                ${c.notes ? '<br><span style="color:var(--text-muted)">' + c.notes + '</span>' : ''}
+            </div>
+            <button class="delete-btn" onclick="deleteClimb('${c.id}')">Delete</button>
+        </div>`;
+    }).join('');
+}
+
+async function deleteClimb(id) {
+    if (!confirm('Delete this climb?')) return;
+    await dbDelete('climbs', id);
+    await refreshData();
+    renderHistory();
+    updateSubtitle();
+}
+
+function viewImage(climbId) {
+    const climb = appClimbs.find(c => c.id === climbId);
+    if (climb && climb.photo) {
+        document.getElementById('viewerImage').src = climb.photo;
+        document.getElementById('imageViewer').classList.add('active');
+    }
+}
+
+function closeImageViewer() {
+    document.getElementById('imageViewer').classList.remove('active');
+}
+
+function getColourHex(name) {
+    const c = HOLD_COLOURS.find(h => h.name.toLowerCase() === name.toLowerCase());
+    if (c) return c.hex;
+    const test = document.createElement('div');
+    test.style.color = name;
+    if (test.style.color) return name;
+    return '#888';
+}
+
+function formatDate(dateStr) {
+    try {
+        const d = new Date(dateStr + 'T00:00:00');
+        return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+    } catch(e) { return dateStr; }
+}
+
+// ===== STATS =====
+function renderStats() {
+    const climbs = appClimbs;
+    const container = document.getElementById('statsContent');
+
+    if (!climbs.length) {
+        container.innerHTML = `<div class="empty-state">
+            <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+            <p>No stats yet.<br>Log some climbs to see your progress!</p>
+        </div>`;
+        return;
+    }
+
+    const totalClimbs = climbs.length;
+    const totalFlashes = climbs.filter(c => c.tries === 1).length;
+    const avgTries = (climbs.reduce((s, c) => s + c.tries, 0) / totalClimbs).toFixed(1);
+    const uniqueGyms = new Set(climbs.map(c => c.gymId)).size;
+
+    const gradeCount = {};
+    climbs.forEach(c => { gradeCount[c.grade] = (gradeCount[c.grade] || 0) + 1; });
+    const sortedGrades = Object.entries(gradeCount).sort((a, b) => b[1] - a[1]);
+    const maxCount = sortedGrades.length ? sortedGrades[0][1] : 1;
+
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const weekStr = weekAgo.toISOString().split('T')[0];
+    const recentClimbs = climbs.filter(c => c.date >= weekStr).length;
+
+    container.innerHTML = `
+        <div class="stats-grid">
+            <div class="card stat-card">
+                <div class="stat-number">${totalClimbs}</div>
+                <div class="stat-label">Total Climbs</div>
+            </div>
+            <div class="card stat-card">
+                <div class="stat-number">${totalFlashes}</div>
+                <div class="stat-label">Flashes</div>
+            </div>
+            <div class="card stat-card">
+                <div class="stat-number">${avgTries}</div>
+                <div class="stat-label">Avg. Tries</div>
+            </div>
+            <div class="card stat-card">
+                <div class="stat-number">${recentClimbs}</div>
+                <div class="stat-label">This Week</div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top:12px;">
+            <h3>Grade Distribution</h3>
+            <div style="margin-top:12px;">
+                ${sortedGrades.map(([grade, count]) => `
+                    <div style="display:flex;align-items:center;margin-bottom:8px;">
+                        <span style="width:60px;font-size:0.85rem;font-weight:600;">${grade}</span>
+                        <div style="flex:1;height:20px;background:var(--bg);border-radius:10px;overflow:hidden;">
+                            <div style="width:${(count/maxCount*100)}%;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:10px;"></div>
+                        </div>
+                        <span style="width:30px;text-align:right;font-size:0.8rem;color:var(--text-muted);margin-left:8px;">${count}</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+
+        <div class="card" style="margin-top:12px;">
+            <h3>Gyms Visited</h3>
+            <p style="font-size:0.85rem;color:var(--text-muted);margin-top:4px;">${uniqueGyms} gym${uniqueGyms !== 1 ? 's' : ''}</p>
+        </div>
+    `;
+}
+
+// ===== EXPORT / IMPORT =====
+function exportData() {
+    const type = document.getElementById('exportType').value;
+    const format = document.getElementById('exportFormat').value;
+
+    let data, filename;
+    if (type === 'climbs') {
+        data = appClimbs.map(c => ({...c, photo: c.photo ? '[photo attached]' : ''}));
+        filename = 'boulder-log-climbs';
+    } else if (type === 'gyms') {
+        data = appGyms;
+        filename = 'boulder-log-gyms';
+    } else {
+        data = {
+            gyms: appGyms,
+            climbs: appClimbs.map(c => ({...c, photo: c.photo ? '[photo attached]' : ''}))
+        };
+        filename = 'boulder-log-all';
+    }
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    filename += `-${dateStr}`;
+
+    let blob, ext;
+    if (format === 'json') {
+        blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+        ext = 'json';
+    } else {
+        let rows;
+        if (type === 'gyms') {
+            rows = [['id','name','location','grading','walls','customGrades','colourGrades']];
+            appGyms.forEach(g => {
+                rows.push([g.id, g.name, g.location, g.grading, g.walls.join('; '), (g.customGrades||[]).join('; '), (g.colourGrades||[]).join('; ')]);
+            });
+        } else {
+            const climbs = type === 'all' ? appClimbs : data;
+            rows = [['id','gymId','gymName','wall','grade','holdColour','tries','date','notes']];
+            (Array.isArray(climbs) ? climbs : appClimbs).forEach(c => {
+                rows.push([c.id, c.gymId, c.gymName, c.wall, c.grade, c.holdColour, c.tries, c.date, c.notes]);
+            });
+        }
+        const csv = rows.map(r => r.map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+        blob = new Blob([csv], {type: 'text/csv'});
+        ext = 'csv';
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${filename}.${ext}`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Export downloaded!');
+}
+
+async function importData(input) {
+    if (!input.files || !input.files[0]) return;
+    const reader = new FileReader();
+    reader.onload = async e => {
+        try {
+            const imported = JSON.parse(e.target.result);
+            if (imported.gyms && imported.climbs) {
+                if (confirm(`Import ${imported.gyms.length} gyms and ${imported.climbs.length} climbs? This will REPLACE your current data.`)) {
+                    await dbClear('gyms');
+                    await dbClear('climbs');
+                    for (const g of imported.gyms) await dbPut('gyms', g);
+                    for (const c of imported.climbs) await dbPut('climbs', c);
+                    await refreshData();
+                    populateGymSelect();
+                    showToast('Data imported!');
+                }
+            } else if (Array.isArray(imported)) {
+                if (imported[0] && imported[0].walls) {
+                    if (confirm(`Import ${imported.length} gyms? This will REPLACE your current gyms.`)) {
+                        await dbClear('gyms');
+                        for (const g of imported) await dbPut('gyms', g);
+                        await refreshData();
+                        populateGymSelect();
+                        showToast('Gyms imported!');
+                    }
+                } else {
+                    if (confirm(`Import ${imported.length} climbs? This will REPLACE your current climbs.`)) {
+                        await dbClear('climbs');
+                        for (const c of imported) await dbPut('climbs', c);
+                        await refreshData();
+                        showToast('Climbs imported!');
+                    }
+                }
+            }
+        } catch(err) {
+            alert('Error reading file: ' + err.message);
+        }
+    };
+    reader.readAsText(input.files[0]);
+    input.value = '';
+}
+
+// ===== HOLD COLOUR PICKER =====
+function initColourPicker() {
+    const grid = document.getElementById('holdColourGrid');
+    grid.innerHTML = HOLD_COLOURS.map(c =>
+        `<div class="colour-option" style="background:${c.hex}" title="${c.name}"
+             onclick="selectHoldColour('${c.name}', this)"></div>`
+    ).join('');
+}
+
+function selectHoldColour(name, el) {
+    document.querySelectorAll('.colour-option').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedHoldColour = name;
+    document.getElementById('holdColourCustom').value = '';
+}
+
+function updateSubtitle() {
+    const count = appClimbs.length;
+    document.getElementById('headerSubtitle').textContent =
+        count ? `${count} climb${count !== 1 ? 's' : ''} logged` : 'Track your climbing progress';
+}
+
+// ===== PWA INSTALL =====
+let deferredPrompt = null;
+
+window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredPrompt = e;
+    document.getElementById('installBanner').classList.add('show');
+});
+
+document.getElementById('installBtn').addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const result = await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    document.getElementById('installBanner').classList.remove('show');
+});
+
+window.addEventListener('appinstalled', () => {
+    document.getElementById('installBanner').classList.remove('show');
+});
+
+// ===== SERVICE WORKER =====
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('SW registered:', reg.scope))
+        .catch(err => console.warn('SW registration failed:', err));
+}
+
+// ===== INIT =====
+async function init() {
+    await openDB();
+    await migrateFromLocalStorage();
+    await refreshData();
+
+    document.getElementById('climbDate').value = new Date().toISOString().split('T')[0];
+    initColourPicker();
+    populateGymSelect();
+    renderGyms();
+    updateSubtitle();
+}
+
+init();
+</script>
+
+</body>
+</html>
