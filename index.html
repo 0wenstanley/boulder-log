@@ -1408,10 +1408,52 @@ if ('serviceWorker' in navigator) {
         .catch(err => console.warn('SW registration failed:', err));
 }
 
+// ===== DEFAULT GYMS =====
+const DEFAULT_GYMS = [
+    {
+        id: 'default-urban-climb-cw',
+        name: 'Urban Climb',
+        location: 'Collingwood',
+        grading: 'colour',
+        walls: ['Roofio','Wolverine','Star Factory','86','The Lab','Ding Dong','Nugget','Slab','Bowie','Atelier'],
+        colourGrades: ['Yellow','Blue','Purple','Green','Orange','Red','Black','White'],
+        customGrades: []
+    },
+    {
+        id: 'default-northside-brunswick',
+        name: 'Northside Boulders',
+        location: 'Brunswick',
+        grading: 'colour',
+        walls: ['Front Wall','Front Arch','Prow','Slab','Back Arete','Back Wall Right','Back Arch','Back Wall Left'],
+        colourGrades: ['Yellow','Orange','Green','Blue','Purple','Red','Grey','Black'],
+        customGrades: []
+    },
+    {
+        id: 'default-rocket',
+        name: 'Rocket',
+        location: 'Footscray',
+        grading: 'custom',
+        walls: [],
+        colourGrades: [],
+        customGrades: ['1','2','3','4','5','6','7','8','9','Mystery']
+    }
+];
+
+async function seedDefaultGyms() {
+    const existing = await dbGetAll('gyms');
+    const existingIds = new Set(existing.map(g => g.id));
+    for (const gym of DEFAULT_GYMS) {
+        if (!existingIds.has(gym.id)) {
+            await dbPut('gyms', gym);
+        }
+    }
+}
+
 // ===== INIT =====
 async function init() {
     await openDB();
     await migrateFromLocalStorage();
+    await seedDefaultGyms();
     await refreshData();
 
     document.getElementById('climbDate').value = new Date().toISOString().split('T')[0];
