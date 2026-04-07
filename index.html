@@ -585,6 +585,7 @@
 
 <!-- Tab: Gyms -->
 <div id="tabGyms" class="tab-content">
+    <div id="unknownBanner"></div>
     <div id="gymList"></div>
     <button class="btn btn-primary" onclick="openGymModal()">
         <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
@@ -702,6 +703,17 @@
 
         <input type="hidden" id="editGymId">
         <button class="btn btn-primary" onclick="saveGym()">Save Gym</button>
+    </div>
+</div>
+
+<!-- Fix Unknown Modal -->
+<div class="modal-overlay" id="fixUnknownModal">
+    <div class="modal">
+        <button class="modal-close" onclick="closeFixUnknownModal()">&times;</button>
+        <h3>Fix Unknown Entries</h3>
+        <p style="font-size:0.8rem;color:var(--text-muted);margin:6px 0 10px;">Reassign imported climbs whose gym is missing.</p>
+        <div id="fixUnknownBody"></div>
+        <button class="btn btn-primary" onclick="applyFixUnknown()">Apply</button>
     </div>
 </div>
 
@@ -985,7 +997,126 @@ async function deleteGym(id) {
     populateGymSelect();
 }
 
+function getUnknownGroups() {
+    const validIds = new Set(appGyms.map(g => g.id));
+    const groups = {};
+    appClimbs.forEach(c => {
+        if (!validIds.has(c.gymId)) {
+            const key = c.gymId || '__none__';
+            if (!groups[key]) groups[key] = { gymId: c.gymId, gymName: c.gymName || 'Unknown', count: 0, walls: new Set() };
+            groups[key].count++;
+            if (c.wall) groups[key].walls.add(c.wall);
+        }
+    });
+    return Object.values(groups);
+}
+
+function renderUnknownBanner() {
+    const banner = document.getElementById('unknownBanner');
+    if (!banner) return;
+    const groups = getUnknownGroups();
+    if (!groups.length) { banner.innerHTML = ''; return; }
+    const total = groups.reduce((s, g) => s + g.count, 0);
+    banner.innerHTML = `<div class="card" style="margin-bottom:12px;border-left:3px solid var(--accent);">
+        <h3 style="font-size:0.95rem;">Unknown gym entries</h3>
+        <p style="font-size:0.8rem;color:var(--text-muted);margin:4px 0 10px;">${total} climb${total===1?'':'s'} reference ${groups.length} missing gym${groups.length===1?'':'s'} (likely from import).</p>
+        <button class="btn btn-primary" onclick="openFixUnknownModal()">Fix unknown entries</button>
+    </div>`;
+}
+
+function openFixUnknownModal() {
+    const groups = getUnknownGroups();
+    const modal = document.getElementById('fixUnknownModal');
+    const body = document.getElementById('fixUnknownBody');
+    if (!groups.length) {
+        body.innerHTML = '<p style="font-size:0.85rem;color:var(--text-muted);">No unknown entries found.</p>';
+    } else {
+        const gymOptions = appGyms.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+        body.innerHTML = groups.map((gr, i) => {
+            const safeKey = gr.gymId || '';
+            return `<div class="card" style="margin-bottom:10px;" data-unknown-key="${safeKey}">
+                <h4 style="font-size:0.9rem;">${gr.gymName}</h4>
+                <p style="font-size:0.75rem;color:var(--text-muted);margin-bottom:8px;">${gr.count} climb${gr.count===1?'':'s'}${gr.walls.size?' &middot; walls: '+[...gr.walls].join(', '):''}</p>
+                <label style="font-size:0.8rem;">Action</label>
+                <select onchange="onFixActionChanged(this)" data-idx="${i}">
+                    <option value="reassign">Reassign to existing gym</option>
+                    <option value="create">Create new gym from this entry</option>
+                    <option value="skip">Skip</option>
+                </select>
+                <div class="fix-reassign" style="margin-top:6px;">
+                    <label style="font-size:0.8rem;">Gym</label>
+                    <select class="fix-target">${gymOptions || '<option value="">(no gyms — add one first)</option>'}</select>
+                </div>
+                <div class="fix-create" style="display:none;margin-top:6px;">
+                    <label style="font-size:0.8rem;">New gym name</label>
+                    <input type="text" class="fix-newname" value="${gr.gymName.replace(/"/g,'&quot;')}">
+                </div>
+            </div>`;
+        }).join('');
+    }
+    modal.classList.add('active');
+}
+
+function closeFixUnknownModal() {
+    document.getElementById('fixUnknownModal').classList.remove('active');
+}
+
+function onFixActionChanged(sel) {
+    const card = sel.closest('[data-unknown-key]');
+    card.querySelector('.fix-reassign').style.display = sel.value === 'reassign' ? '' : 'none';
+    card.querySelector('.fix-create').style.display = sel.value === 'create' ? '' : 'none';
+}
+
+async function applyFixUnknown() {
+    const cards = document.querySelectorAll('#fixUnknownBody [data-unknown-key]');
+    let fixed = 0;
+    for (const card of cards) {
+        const oldKey = card.getAttribute('data-unknown-key');
+        const action = card.querySelector('select[data-idx]').value;
+        if (action === 'skip') continue;
+        let newGymId = null;
+        let newGymName = null;
+        if (action === 'reassign') {
+            const targetSel = card.querySelector('.fix-target');
+            newGymId = targetSel.value;
+            if (!newGymId) continue;
+            const g = appGyms.find(x => x.id === newGymId);
+            newGymName = g ? g.name : '';
+        } else if (action === 'create') {
+            const name = card.querySelector('.fix-newname').value.trim();
+            if (!name) { alert('Please enter a name for the new gym.'); return; }
+            const newGym = {
+                id: Date.now().toString() + Math.random().toString(36).slice(2,6),
+                name, location: '', grading: 'colour',
+                colourGrades: [], walls: [], customGrades: []
+            };
+            await dbPut('gyms', newGym);
+            appGyms.push(newGym);
+            newGymId = newGym.id;
+            newGymName = name;
+        }
+        // Update matching climbs: those whose current gymId equals oldKey (the original unknown id)
+        for (const c of appClimbs) {
+            const ck = c.gymId || '';
+            if (ck === oldKey) {
+                c.gymId = newGymId;
+                c.gymName = newGymName;
+                await dbPut('climbs', c);
+                fixed++;
+            }
+        }
+    }
+    closeFixUnknownModal();
+    await refreshData();
+    renderGyms();
+    renderHistory();
+    populateGymSelect();
+    updateSubtitle();
+    showToast(fixed ? `Fixed ${fixed} climb${fixed===1?'':'s'}` : 'No changes');
+}
+
 function renderGyms() {
+    renderUnknownBanner();
     const container = document.getElementById('gymList');
     if (!appGyms.length) {
         container.innerHTML = `<div class="empty-state">
