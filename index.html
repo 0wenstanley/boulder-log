@@ -629,12 +629,12 @@
 
     <div class="card" style="margin-top:12px;">
         <h3>Import Data</h3>
-        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;">Restore from a previous JSON export.</p>
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;">Restore from a previous JSON or CSV export.</p>
         <label class="file-label" for="importFile">
             <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
-            Choose JSON File
+            Choose JSON or CSV File
         </label>
-        <input type="file" id="importFile" accept="application/json,application/octet-stream,text/plain,.json,*/*" onchange="importData(this)">
+        <input type="file" id="importFile" accept="application/json,text/csv,application/octet-stream,text/plain,.json,.csv,*/*" onchange="importData(this)">
     </div>
 
     <div class="card" style="margin-top:12px;">
@@ -1533,17 +1533,96 @@ function exportData() {
     showToast('Export downloaded!');
 }
 
+function parseCSV(text) {
+    const rows = [];
+    let row = [], field = '', inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (inQuotes) {
+            if (ch === '"') {
+                if (text[i+1] === '"') { field += '"'; i++; }
+                else { inQuotes = false; }
+            } else { field += ch; }
+        } else {
+            if (ch === '"') { inQuotes = true; }
+            else if (ch === ',') { row.push(field); field = ''; }
+            else if (ch === '\n' || ch === '\r') {
+                if (ch === '\r' && text[i+1] === '\n') i++;
+                row.push(field); field = '';
+                if (row.length > 1 || row[0] !== '') rows.push(row);
+                row = [];
+            } else { field += ch; }
+        }
+    }
+    if (field !== '' || row.length) { row.push(field); rows.push(row); }
+    return rows.filter(r => r.some(c => c !== ''));
+}
+
 async function importData(input) {
     if (!input.files || !input.files[0]) return;
     const file = input.files[0];
-    if (!file.name.toLowerCase().endsWith('.json')) {
-        showToast('Please select a .json file');
+    const name = file.name.toLowerCase();
+    const isJson = name.endsWith('.json');
+    const isCsv = name.endsWith('.csv');
+    if (!isJson && !isCsv) {
+        showToast('Please select a .json or .csv file');
         input.value = '';
         return;
     }
     const reader = new FileReader();
     reader.onload = async e => {
         try {
+            if (isCsv) {
+                const rows = parseCSV(e.target.result);
+                if (rows.length < 2) { alert('CSV is empty'); return; }
+                const header = rows[0].map(h => h.trim());
+                const body = rows.slice(1);
+                const idx = name => header.indexOf(name);
+
+                if (idx('walls') !== -1) {
+                    // Gyms CSV
+                    const gyms = body.map(r => ({
+                        id: r[idx('id')] || ('gym-' + Date.now() + '-' + Math.random().toString(36).slice(2,7)),
+                        name: r[idx('name')] || '',
+                        location: r[idx('location')] || '',
+                        grading: r[idx('grading')] || '',
+                        walls: (r[idx('walls')] || '').split(';').map(s => s.trim()).filter(Boolean),
+                        customGrades: idx('customGrades') !== -1 ? (r[idx('customGrades')] || '').split(';').map(s => s.trim()).filter(Boolean) : [],
+                        colourGrades: idx('colourGrades') !== -1 ? (r[idx('colourGrades')] || '').split(';').map(s => s.trim()).filter(Boolean) : []
+                    }));
+                    if (confirm(`Import ${gyms.length} gyms? This will REPLACE your current gyms.`)) {
+                        await dbClear('gyms');
+                        for (const g of gyms) await dbPut('gyms', g);
+                        await refreshData();
+                        populateGymSelect();
+                        showToast('Gyms imported!');
+                    }
+                } else if (idx('grade') !== -1 || idx('wall') !== -1) {
+                    // Climbs CSV
+                    const climbs = body.map(r => ({
+                        id: r[idx('id')] || ('climb-' + Date.now() + '-' + Math.random().toString(36).slice(2,7)),
+                        gymId: idx('gymId') !== -1 ? r[idx('gymId')] : '',
+                        gymName: idx('gymName') !== -1 ? r[idx('gymName')] : '',
+                        wall: idx('wall') !== -1 ? r[idx('wall')] : '',
+                        grade: idx('grade') !== -1 ? r[idx('grade')] : '',
+                        holdColour: idx('holdColour') !== -1 ? r[idx('holdColour')] : '',
+                        tries: idx('tries') !== -1 ? Number(r[idx('tries')]) || 1 : 1,
+                        sent: idx('sent') !== -1 ? (r[idx('sent')] || '').toLowerCase() !== 'no' : true,
+                        date: idx('date') !== -1 ? r[idx('date')] : '',
+                        notes: idx('notes') !== -1 ? r[idx('notes')] : ''
+                    }));
+                    if (confirm(`Import ${climbs.length} climbs? This will REPLACE your current climbs.`)) {
+                        await dbClear('climbs');
+                        for (const c of climbs) await dbPut('climbs', c);
+                        await refreshData();
+                        showToast('Climbs imported!');
+                    }
+                } else {
+                    alert('Unrecognised CSV format. Expected a gyms or climbs export.');
+                }
+                input.value = '';
+                return;
+            }
             const imported = JSON.parse(e.target.result);
             if (imported.gyms && imported.climbs) {
                 if (confirm(`Import ${imported.gyms.length} gyms and ${imported.climbs.length} climbs? This will REPLACE your current data.`)) {
