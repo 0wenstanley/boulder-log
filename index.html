@@ -518,6 +518,9 @@
 <div class="header">
     <h1>Boulder Log</h1>
     <p id="headerSubtitle">Track your climbing progress</p>
+    <button class="theme-toggle" id="themeToggleBtn" onclick="cycleTheme()" title="Change theme" aria-label="Change theme">
+        <span id="themeToggleIcon">🌙</span>
+    </button>
 </div>
 
 <!-- Tab: Log a Climb -->
@@ -632,6 +635,16 @@
             Choose JSON File
         </label>
         <input type="file" id="importFile" accept=".json" onchange="importData(this)">
+    </div>
+
+    <div class="card" style="margin-top:12px;">
+        <h3>Appearance</h3>
+        <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:12px;">Choose a theme for the app.</p>
+        <div class="filter-bar" id="themeOptions" role="radiogroup" aria-label="Theme">
+            <button type="button" class="filter-chip" data-theme-option="light" onclick="setTheme('light')">☀️ Light</button>
+            <button type="button" class="filter-chip" data-theme-option="dark" onclick="setTheme('dark')">🌙 Dark</button>
+            <button type="button" class="filter-chip" data-theme-option="system" onclick="setTheme('system')">🖥️ System</button>
+        </div>
     </div>
 </div>
 
@@ -1653,8 +1666,54 @@ async function seedDefaultGyms() {
     }
 }
 
+// ===== THEME =====
+const THEME_KEY = 'boulderLog.theme';
+const THEME_COLOURS = { dark: '#533483', light: '#f5f5f0' };
+function getStoredTheme() {
+    const t = localStorage.getItem(THEME_KEY);
+    return (t === 'light' || t === 'dark' || t === 'system') ? t : 'system';
+}
+function resolveTheme(pref) {
+    if (pref === 'system') {
+        return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    }
+    return pref;
+}
+function applyTheme(pref) {
+    const effective = resolveTheme(pref);
+    document.documentElement.setAttribute('data-theme', effective);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', THEME_COLOURS[effective] || '#533483');
+    // Update segmented control
+    document.querySelectorAll('[data-theme-option]').forEach(el => {
+        el.classList.toggle('active', el.dataset.themeOption === pref);
+    });
+    // Update header toggle icon
+    const icon = document.getElementById('themeToggleIcon');
+    if (icon) icon.textContent = pref === 'system' ? '🖥️' : (effective === 'dark' ? '🌙' : '☀️');
+}
+function setTheme(pref) {
+    localStorage.setItem(THEME_KEY, pref);
+    applyTheme(pref);
+}
+function cycleTheme() {
+    const order = ['light', 'dark', 'system'];
+    const current = getStoredTheme();
+    const next = order[(order.indexOf(current) + 1) % order.length];
+    setTheme(next);
+}
+function initTheme() {
+    applyTheme(getStoredTheme());
+    if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
+            if (getStoredTheme() === 'system') applyTheme('system');
+        });
+    }
+}
+
 // ===== INIT =====
 async function init() {
+    initTheme();
     await openDB();
     await migrateFromLocalStorage();
     await seedDefaultGyms();
