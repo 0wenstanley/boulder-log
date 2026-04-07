@@ -634,7 +634,7 @@
             <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
             Choose JSON File
         </label>
-        <input type="file" id="importFile" accept=".json" onchange="importData(this)">
+        <input type="file" id="importFile" accept="application/json,application/octet-stream,text/plain,.json,*/*" onchange="importData(this)">
     </div>
 
     <div class="card" style="margin-top:12px;">
@@ -1535,6 +1535,12 @@ function exportData() {
 
 async function importData(input) {
     if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+    if (!file.name.toLowerCase().endsWith('.json')) {
+        showToast('Please select a .json file');
+        input.value = '';
+        return;
+    }
     const reader = new FileReader();
     reader.onload = async e => {
         try {
