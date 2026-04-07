@@ -579,6 +579,7 @@
 
 <!-- Tab: History -->
 <div id="tabHistory" class="tab-content">
+    <div id="unknownBannerHistory"></div>
     <div class="filter-bar" id="historyFilters"></div>
     <div id="climbList"></div>
 </div>
@@ -1012,16 +1013,19 @@ function getUnknownGroups() {
 }
 
 function renderUnknownBanner() {
-    const banner = document.getElementById('unknownBanner');
-    if (!banner) return;
     const groups = getUnknownGroups();
-    if (!groups.length) { banner.innerHTML = ''; return; }
-    const total = groups.reduce((s, g) => s + g.count, 0);
-    banner.innerHTML = `<div class="card" style="margin-bottom:12px;border-left:3px solid var(--accent);">
-        <h3 style="font-size:0.95rem;">Unknown gym entries</h3>
-        <p style="font-size:0.8rem;color:var(--text-muted);margin:4px 0 10px;">${total} climb${total===1?'':'s'} reference ${groups.length} missing gym${groups.length===1?'':'s'} (likely from import).</p>
-        <button class="btn btn-primary" onclick="openFixUnknownModal()">Fix unknown entries</button>
-    </div>`;
+    const html = groups.length ? (() => {
+        const total = groups.reduce((s, g) => s + g.count, 0);
+        return `<div class="card" style="margin-bottom:12px;border-left:3px solid var(--accent);">
+            <h3 style="font-size:0.95rem;">Unknown gym entries</h3>
+            <p style="font-size:0.8rem;color:var(--text-muted);margin:4px 0 10px;">${total} climb${total===1?'':'s'} reference ${groups.length} missing gym${groups.length===1?'':'s'} (likely from import).</p>
+            <button class="btn btn-primary" onclick="openFixUnknownModal()">Fix unknown entries</button>
+        </div>`;
+    })() : '';
+    ['unknownBanner', 'unknownBannerHistory'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = html;
+    });
 }
 
 function openFixUnknownModal() {
@@ -1281,6 +1285,7 @@ async function saveClimb() {
 let historyFilter = 'all';
 
 function renderHistory() {
+    renderUnknownBanner();
     const filterBar = document.getElementById('historyFilters');
     const gymIds = [...new Set(appClimbs.map(c => c.gymId))];
     let chips = `<div class="filter-chip ${historyFilter === 'all' ? 'active' : ''}" onclick="historyFilter='all';renderHistory()">All</div>`;
